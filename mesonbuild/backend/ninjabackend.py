@@ -628,17 +628,43 @@ class NinjaBackend(backends.Backend):
             self.generate_dist()
             mlog.log_timestamp("Dist generated")
             key = OptionKey('b_coverage')
-            if (key in self.environment.coredata.options and
-                    self.environment.coredata.options[key].value):
-                gcovr_exe, gcovr_version, lcov_exe, lcov_version, genhtml_exe, _ = environment.find_coverage_tools()
-                if gcovr_exe or (lcov_exe and genhtml_exe):
+            if key in self.environment.coredata.options:
+                value = self.environment.coredata.options[key].value
+
+                if value == 'true':
+                    value = 'gcov_compat'
+
+                gen_cov_rules_ptr = None
+                (gcovr_exe, gcovr_version, lcov_exe, lcov_version, genhtml_exe, llvm_cov_exe, llvm_cov_version) = environment.find_coverage_tools()
+                tools_need_msg_template = 'Need {} to generate any coverage reports'
+
+                if value == 'gcov_strict':
+                    if gcovr_exe or (lcov_exe and genhtml_exe):
+                        gen_cov_rules_ptr = lambda: self.generate_coverage_rules(gcovr_exe, gcovr_version)
+                    else:
+                        mlog.error(tools_needed_msg_templat.format('or'.join(['gcovr', 'lcov/genhtml'])))
+                elif value == 'gcov_compat':
+                    if gcovr_exe or (lcov_exe and genhtml_exe):
+                        gen_cov_rules_ptr = lambda: self.generate_gcov_coverage_rules(gcovr_exe, gcovr_version)
+                    elif llvm_cov_exe:
+                        gcovr_exe = llvm_cov_exe + ' gcov'
+                        gcovr_version = llvm_cov_version
+                        gen_cov_rules_ptr = lambda: self.generate_gcov_coverage_rules(gcovr_exe, gcovr_version)
+                    else:
+                        mlog.error(tools_needed_msg_templat.format('or'.join(['gcovr', 'lcov/genhtml', 'llvm-cov'])))
+                elif value == 'llvm':
+                    if llvm_cov_exe:
+                        gen_cov_rules_ptr = lambda: self.generate_llvm_coverage_rules(llvm_cov_exe, llvm_cov_version)
+                    else:
+                        mlog.error(tools_needed_msg_templat.format('or'.join(['llvm-cov'])))
+                elif value != 'false':
+                    mlog.error('Unknown argument for b_coverage: {}'.format(value))
+
+                if gen_cov_rules_ptr:
                     self.add_build_comment(NinjaComment('Coverage rules'))
-                    self.generate_coverage_rules(gcovr_exe, gcovr_version)
+                    gen_cov_rules_ptr()
                     mlog.log_timestamp("Coverage rules generated")
-                else:
-                    # FIXME: since we explicitly opted in, should this be an error?
-                    # The docs just say these targets will be created "if possible".
-                    mlog.warning('Need gcovr or lcov/genhtml to generate any coverage reports')
+
             self.add_build_comment(NinjaComment('Suffix'))
             self.generate_utils()
             mlog.log_timestamp("Utils generated")
@@ -1230,35 +1256,43 @@ class NinjaBackend(backends.Backend):
                        self.environment.get_log_dir()] +
                       (['--use_llvm_cov'] if use_llvm_cov else []))
 
-    def generate_coverage_rules(self, gcovr_exe: T.Optional[str], gcovr_version: T.Optional[str]):
+    def generate_llvm_coverage_rules(self, llvm_cov_exe: str, llvm_cov_version: str):
+        pass
+
+    def generate_gcov_coverage_rules(self, gcovr_exe: str, lcov_exe: str, genhtml_exe: str):
+        for target in self.build.get_targets.values():
+            for compiler in target.get('compilers', {}).values()
+                if compiler.get_id() == 'rustc':
+                    raise MesonException(f'rustc not compatible with gcovr')
+                if compiler.get_id() == 'clang' and not compiler.info.is_darwin():
+                    raise MesonException(f'clang not compatible with gcovr')
         e = self.create_phony_target('coverage', 'CUSTOM_COMMAND', 'PHONY')
         self.generate_coverage_command(e, [])
         e.add_item('description', 'Generates coverage reports')
         self.add_build(e)
         self.generate_coverage_legacy_rules(gcovr_exe, gcovr_version)
 
-    def generate_coverage_legacy_rules(self, gcovr_exe: T.Optional[str], gcovr_version: T.Optional[str]):
+    def generate_coverage_legacy_rules(self, gcovr_exe: str, gcovr_version: str):
         e = self.create_phony_target('coverage-html', 'CUSTOM_COMMAND', 'PHONY')
         self.generate_coverage_command(e, ['--html'])
         e.add_item('description', 'Generates HTML coverage report')
         self.add_build(e)
 
-        if gcovr_exe:
-            e = self.create_phony_target('coverage-xml', 'CUSTOM_COMMAND', 'PHONY')
-            self.generate_coverage_command(e, ['--xml'])
-            e.add_item('description', 'Generates XML coverage report')
-            self.add_build(e)
+        e = self.create_phony_target('coverage-xml', 'CUSTOM_COMMAND', 'PHONY')
+        self.generate_coverage_command(e, ['--xml'])
+        e.add_item('description', 'Generates XML coverage report')
+        self.add_build(e)
 
-            e = self.create_phony_target('coverage-text', 'CUSTOM_COMMAND', 'PHONY')
-            self.generate_coverage_command(e, ['--text'])
-            e.add_item('description', 'Generates text coverage report')
-            self.add_build(e)
+        e = self.create_phony_target('coverage-text', 'CUSTOM_COMMAND', 'PHONY')
+        self.generate_coverage_command(e, ['--text'])
+        e.add_item('description', 'Generates text coverage report')
+        self.add_build(e)
 
-            if mesonlib.version_compare(gcovr_version, '>=4.2'):
-                e = self.create_phony_target('coverage-sonarqube', 'CUSTOM_COMMAND', 'PHONY')
-                self.generate_coverage_command(e, ['--sonarqube'])
-                e.add_item('description', 'Generates Sonarqube XML coverage report')
-                self.add_build(e)
+        if mesonlib.version_compare(gcovr_version, '>=4.2'):
+            e = self.create_phony_target('coverage-sonarqube', 'CUSTOM_COMMAND', 'PHONY')
+            self.generate_coverage_command(e, ['--sonarqube'])
+            e.add_item('description', 'Generates Sonarqube XML coverage report')
+            self.add_build(e)
 
     def generate_install(self):
         self.create_install_data_files()

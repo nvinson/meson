@@ -100,17 +100,25 @@ def detect_lcov(log: bool = False):
         return lcov_exe, found
     return None, None
 
-def detect_llvm_cov():
+def detect_llvm_cov(log: bool = False):
     tools = get_llvm_tool_names('llvm-cov')
     for tool in tools:
-        if mesonlib.exe_exists([tool, '--version']):
-            return tool
-    return None
+        try:
+            p, found = Popen_safe([tool, '--version'])[0:2]
+            found = search_version(found)
+            print('Found llvm-cov-{} at {}'.format(found, quote_arg(shutil.which(tool))))
+            if p.returncode == 0 and found:
+                if log:
+                    mlog.log('Found llvm-cov-{} at {}'.format(found, quote_arg(shutil.which(tool))))
+                return tool, found
+        except:
+            pass
+    return None, None
 
 def find_coverage_tools() -> T.Tuple[T.Optional[str], T.Optional[str], T.Optional[str], T.Optional[str], T.Optional[str], T.Optional[str]]:
     gcovr_exe, gcovr_version = detect_gcovr()
 
-    llvm_cov_exe = detect_llvm_cov()
+    llvm_cov_exe, llvm_cov_version = detect_llvm_cov()
 
     lcov_exe, lcov_version = detect_lcov()
     genhtml_exe = 'genhtml'
@@ -118,7 +126,7 @@ def find_coverage_tools() -> T.Tuple[T.Optional[str], T.Optional[str], T.Optiona
     if not mesonlib.exe_exists([genhtml_exe, '--version']):
         genhtml_exe = None
 
-    return gcovr_exe, gcovr_version, lcov_exe, lcov_version, genhtml_exe, llvm_cov_exe
+    return gcovr_exe, gcovr_version, lcov_exe, lcov_version, genhtml_exe, llvm_cov_exe, llvm_cov_version
 
 def detect_ninja(version: str = '1.8.2', log: bool = False) -> T.List[str]:
     r = detect_ninja_command_and_version(version, log)

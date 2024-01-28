@@ -190,25 +190,25 @@ no options.
 The following options are available. Note that they may not be
 available on all platforms or with all compilers:
 
-| Option              | Default value        | Possible values                                               | Description                                                                    |
-|---------------------|----------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------|
-| b_asneeded          | true                 | true, false                                                   | Use -Wl,--as-needed when linking                                               |
-| b_bitcode           | false                | true, false                                                   | Embed Apple bitcode, see below                                                 |
-| b_colorout          | always               | auto, always, never                                           | Use colored output                                                             |
-| b_coverage          | false                | true, false                                                   | Enable coverage tracking                                                       |
-| b_lundef            | true                 | true, false                                                   | Don't allow undefined symbols when linking                                     |
-| b_lto               | false                | true, false                                                   | Use link time optimization                                                     |
-| b_lto_threads       | 0                    | Any integer*                                                  | Use multiple threads for lto. *(Added in 0.57.0)*                              |
-| b_lto_mode          | default              | default, thin                                                 | Select between lto modes, thin and default. *(Added in 0.57.0)*                |
-| b_thinlto_cache     | false                | true, false                                                   | Enable LLVM's ThinLTO cache for faster incremental builds. *(Added in 0.64.0)* |
-| b_thinlto_cache_dir | (Internal build dir) | true, false                                                   | Specify where to store ThinLTO cache objects. *(Added in 0.64.0)*              |
-| b_ndebug            | false                | true, false, if-release                                       | Disable asserts                                                                |
-| b_pch               | true                 | true, false                                                   | Use precompiled headers                                                        |
-| b_pgo               | off                  | off, generate, use                                            | Use profile guided optimization                                                |
-| b_sanitize          | none                 | see below                                                     | Code sanitizer to use                                                          |
-| b_staticpic         | true                 | true, false                                                   | Build static libraries as position independent                                 |
-| b_pie               | false                | true, false                                                   | Build position-independent executables (since 0.49.0)                          |
-| b_vscrt             | from_buildtype       | none, md, mdd, mt, mtd, from_buildtype, static_from_buildtype | VS runtime library to use (since 0.48.0) (static_from_buildtype since 0.56.0)  |
+| Option              | Default value        | Possible values                                               | Description                                                                                            |
+|---------------------|----------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| b_asneeded          | true                 | true, false                                                   | Use -Wl,--as-needed when linking                                                                       |
+| b_bitcode           | false                | true, false                                                   | Embed Apple bitcode, see below                                                                         |
+| b_colorout          | always               | auto, always, never                                           | Use colored output                                                                                     |
+| b_coverage          | false                | true, false, gcov_compat, gcov_strict, llvm                   | Enable coverage tracking optionally specifying tool suite (see below) (suite selection added in 1.3.2) |
+| b_lundef            | true                 | true, false                                                   | Don't allow undefined symbols when linking                                                             |
+| b_lto               | false                | true, false                                                   | Use link time optimization                                                                             |
+| b_lto_threads       | 0                    | Any integer*                                                  | Use multiple threads for lto. *(Added in 0.57.0)*                                                      |
+| b_lto_mode          | default              | default, thin                                                 | Select between lto modes, thin and default. *(Added in 0.57.0)*                                        |
+| b_thinlto_cache     | false                | true, false                                                   | Enable LLVM's ThinLTO cache for faster incremental builds. *(Added in 0.64.0)*                         |
+| b_thinlto_cache_dir | (Internal build dir) | true, false                                                   | Specify where to store ThinLTO cache objects. *(Added in 0.64.0)*                                      |
+| b_ndebug            | false                | true, false, if-release                                       | Disable asserts                                                                                        |
+| b_pch               | true                 | true, false                                                   | Use precompiled headers                                                                                |
+| b_pgo               | off                  | off, generate, use                                            | Use profile guided optimization                                                                        |
+| b_sanitize          | none                 | see below                                                     | Code sanitizer to use                                                                                  |
+| b_staticpic         | true                 | true, false                                                   | Build static libraries as position independent                                                         |
+| b_pie               | false                | true, false                                                   | Build position-independent executables (since 0.49.0)                                                  |
+| b_vscrt             | from_buildtype       | none, md, mdd, mt, mtd, from_buildtype, static_from_buildtype | VS runtime library to use (since 0.48.0) (static_from_buildtype since 0.56.0)                          |
 
 The value of `b_sanitize` can be one of: `none`, `address`, `thread`,
 `undefined`, `memory`, `leak`, `address,undefined`, but note that some
@@ -218,6 +218,15 @@ only supports the address sanitizer.
 \* < 0 means disable, == 0 means automatic selection, > 0 sets a specific number to use
 
 LLVM supports `thin` lto, for more discussion see [LLVM's documentation](https://clang.llvm.org/docs/ThinLTO.html)
+
+The values `true` and `false` of `b_coverage` are included to provide partial
+backwards compatibility with earlier versions where `b_coverage` was just a
+boolean value. The value `true` is an alias for `gcov_compat` and the value
+false is equivalent to not specifying the flag. The value `gcov_strict` uses
+gcov and lcov/genhtml to produce coverage reports. The value `gcov_compat` is
+identical to `gcov_strict`, but will also use `llvm-cov` as a fallback if
+`llvm-cov` is available. The value `llvm` uses only `llvm-cov` to generate
+reports using LLVM's native formatting.
 
 <a name="b_vscrt-from_buildtype"></a>
 The default value of `b_vscrt` is `from_buildtype`. The following table is
